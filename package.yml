@@ -1,0 +1,45 @@
+name: yarn-plugin-yaml-manifest
+version: 0.0.1
+description: Use YAML for your package.json manifest.
+main: src/index.ts
+author: Lyle Underwood <lyleunderwood@gmail.com>
+license: MIT
+
+scripts:
+  # outputs the plugin bundle to ./bundles
+  build: builder build plugin
+  ts:check: tsc --noEmit
+
+dependencies:
+  # specifies JavaScript object patch format and implements diffing
+  rfc6902: ^5.0.0
+  # for parsing YAML
+  yaml: ^1.10.2
+  # for patching YAML (accepts RFC6902 patch operations)
+  yaml-diff-patch: ^1.1.0
+
+  # yarn plugin stuff
+  clipanion: ^3.2.0-rc.4
+  typanion: ^3.7.1
+  "@yarnpkg/core": ^3.2.0-rc.8
+
+devDependencies:
+  # build
+  "@yarnpkg/builder": ^3.1.0
+
+  # linting
+  eslint: ^8.5.0
+  eslint-config-prettier: ^8.3.0
+  eslint-plugin-prettier: ^4.0.0
+  prettier: ^2.5.1
+
+  # typescript
+  typescript: ^4.5.4
+  # it's unclear to me whether these are still necessary
+  "@typescript-eslint/eslint-plugin": ^5.8.0
+  "@typescript-eslint/parser": ^5.8.0
+
+  # types
+  "@types/node": ^17.0.2
+
+packageManager: yarn@3.1.1
