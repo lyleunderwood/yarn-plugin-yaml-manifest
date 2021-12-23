@@ -1,6 +1,6 @@
 name: yarn-plugin-yaml-manifest
 version: 0.0.1
-description: Use YAML for your package.json manifest.
+description: Yarn Berry plugin to use YAML manifest file.
 main: src/index.ts
 author: Lyle Underwood <lyleunderwood@gmail.com>
 license: MIT

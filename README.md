@@ -2,6 +2,11 @@
 
 Yarn Berry plugin to use YAML manifest file.
 
+Have you ever wished you could add comments and whitespace to your `package.json` file?
+Rearrange it even? You can with [YAML](https://yaml.org/). See the
+[`package.yml`](https://github.com/lyleunderwood/yarn-plugin-yaml-manifest/blob/master/package.yml)
+in this repo as an example.
+
 # Installation
 
 ```
