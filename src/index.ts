@@ -138,6 +138,7 @@ export const handleDependenciesUpdated = ({
 }: Project) => {
   // get project path
   const projectPath = configuration.projectCwd;
+  console.log("handleDependenciesUpdated", { projectPath });
   // bail if no project path, project must not be initialized
   if (projectPath === null) return;
 
@@ -147,12 +148,14 @@ export const handleDependenciesUpdated = ({
   [...workspacePaths].forEach((workspacePath) => {
     const manifestPath = path.join(workspacePath, manifestFileName);
     const yamlManifestPath = path.join(workspacePath, yamlManifestFileName);
+    console.log({ manifestPath, yamlManifestPath });
 
     // if package.json doesn't exist
     if (!fs.existsSync(manifestPath)) {
       // if package.yml does exist
       if (fs.existsSync(yamlManifestPath)) {
         // write package.json from package.yml
+        console.log("writing from package.yml");
         updateManifest({ manifestPath, yamlManifestPath: yamlManifestPath });
       } else {
         // otherwise, skip this path
@@ -163,12 +166,14 @@ export const handleDependenciesUpdated = ({
     // if package.yml doesn't exist
     if (!fs.existsSync(yamlManifestPath)) {
       // write it from package.json
+      console.log("writing from package.json");
       updateYaml({ manifestPath, yamlManifestPath: yamlManifestPath });
       // and skip this path
       return;
     }
 
     // update package.yml from package.json for this path
+    console.log("patching");
     updateYaml({ manifestPath, yamlManifestPath: yamlManifestPath });
   });
 };
