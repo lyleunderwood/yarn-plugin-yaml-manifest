@@ -12,7 +12,9 @@
   },
   "dependencies": {
     "@yarnpkg/core": "^3.2.0-rc.8",
+    "@yarnpkg/fslib": "^2.6.1-rc.3",
     "clipanion": "^3.2.0-rc.4",
+    "globby": "^12.0.2",
     "rfc6902": "^5.0.0",
     "typanion": "^3.7.1",
     "yaml": "^1.10.2",
