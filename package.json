@@ -7,7 +7,8 @@
   "license": "MIT",
   "scripts": {
     "build": "builder build plugin",
-    "ts:check": "tsc --noEmit"
+    "ts:check": "tsc --noEmit",
+    "import": "yarn plugin import ./bundles/@yarnpkg/plugin-yaml-manifest.js"
   },
   "dependencies": {
     "@yarnpkg/core": "^3.2.0-rc.8",

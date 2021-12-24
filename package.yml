@@ -9,6 +9,7 @@ scripts:
   # outputs the plugin bundle to ./bundles
   build: builder build plugin
   ts:check: tsc --noEmit
+  import: yarn plugin import ./bundles/@yarnpkg/plugin-yaml-manifest.js
 
 dependencies:
   # specifies JavaScript object patch format and implements diffing
