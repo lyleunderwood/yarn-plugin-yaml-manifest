@@ -9,7 +9,7 @@ import * as YAML from "yaml";
 import * as YAMLDiffPatch from "yaml-diff-patch";
 import { createPatch, applyPatch } from "rfc6902";
 import type { Hooks, Plugin, Configuration, Project } from "@yarnpkg/core";
-import globby from "globby";
+import { globbySync } from "globby";
 
 export const DEFAULT_MANIFEST_FILE_NAME = "package.json" as Filename;
 export const DEFAULT_YAML_MANIFEST_FILE_NAME = "package.yml" as Filename;
@@ -22,44 +22,51 @@ export const yamlManifestFileName =
 
 export const updateYaml = ({
   manifestPath,
-  yamlPath,
+  yamlManifestPath,
 }: {
   manifestPath: PortablePath;
-  yamlPath: PortablePath;
+  yamlManifestPath: PortablePath;
 }) => {
-  const yamlString = fs.existsSync(yamlPath)
-    ? fs.readFileSync(yamlPath).toString()
+  const yamlString = fs.existsSync(yamlManifestPath)
+    ? fs.readFileSync(yamlManifestPath).toString()
     : "{}";
 
   const jsonObject = JSON.parse(fs.readFileSync(manifestPath).toString());
   const yamlObject = YAML.parse(yamlString);
 
-  const delta = createPatch(jsonObject, yamlObject);
+  const delta = createPatch(yamlObject, jsonObject);
+  console.log(delta);
 
   // if the contents would be unchanged, don't bother writing (mostly to preserve mtime)
   if (delta.length === 0) return;
 
-  fs.writeFileSync(yamlPath, YAMLDiffPatch.yamlPatch(yamlString, delta));
+  fs.writeFileSync(
+    yamlManifestPath,
+    YAMLDiffPatch.yamlPatch(yamlString, delta)
+  );
 };
 
 export const updateManifest = ({
   manifestPath,
-  yamlPath,
+  yamlManifestPath,
 }: {
   manifestPath: PortablePath;
-  yamlPath: PortablePath;
+  yamlManifestPath: PortablePath;
 }) => {
-  const yamlObject = YAML.parse(fs.readFileSync(yamlPath).toString());
+  const yamlObject = YAML.parse(fs.readFileSync(yamlManifestPath).toString());
   const jsonObject = fs.existsSync(manifestPath)
     ? JSON.parse(fs.readFileSync(manifestPath).toString())
     : {};
 
-  const delta = createPatch(yamlObject, jsonObject);
+  const delta = createPatch(jsonObject, yamlObject);
+  console.log(delta);
 
   // if the contents would be unchanged, don't bother writing (mostly to preserve mtime)
   if (delta.length === 0) return;
 
-  fs.writeFileSync(manifestPath, JSON.stringify(applyPatch(jsonObject, delta)));
+  const errors = applyPatch(jsonObject, delta); // mutates jsonObject
+  if (errors?.length > 0) console.error(errors);
+  fs.writeFileSync(manifestPath, JSON.stringify(jsonObject, null, 2));
 };
 
 export const handleYarnStart = async (configuration: Configuration) => {
@@ -87,15 +94,13 @@ export const handleYarnStart = async (configuration: Configuration) => {
   const patterns: string[] = projectConfig?.workspaces || [];
 
   // stolen from https://git.io/JyLqf
-  const workspacePaths = (
-    await globby(patterns, {
-      cwd: npath.fromPortablePath(projectPath),
-      expandDirectories: false,
-      onlyDirectories: true,
-      onlyFiles: false,
-      ignore: [`**/node_modules`, `**/.git`, `**/.yarn`],
-    })
-  ).map(npath.toPortablePath);
+  const workspacePaths = globbySync(patterns, {
+    cwd: npath.fromPortablePath(projectPath),
+    expandDirectories: false,
+    onlyDirectories: true,
+    onlyFiles: false,
+    ignore: [`**/node_modules`, `**/.git`, `**/.yarn`],
+  }).map(npath.toPortablePath);
 
   // for each workspace path and project path
   [...workspacePaths, projectPath].forEach((workspacePath) => {
@@ -107,7 +112,7 @@ export const handleYarnStart = async (configuration: Configuration) => {
       // if package.yml does exist
       if (fs.existsSync(yamlManifestPath)) {
         // write package.json from package.yml
-        updateManifest({ manifestPath, yamlPath: yamlManifestPath });
+        updateManifest({ manifestPath, yamlManifestPath: yamlManifestPath });
       } else {
         // otherwise, skip this path
         return;
@@ -117,13 +122,13 @@ export const handleYarnStart = async (configuration: Configuration) => {
     // if package.yml doesn't exist
     if (!fs.existsSync(yamlManifestPath)) {
       // write it from package.json
-      updateYaml({ manifestPath, yamlPath: yamlManifestPath });
+      updateYaml({ manifestPath, yamlManifestPath: yamlManifestPath });
       // and skip this path
       return;
     }
 
     // update package.json from package.yml for this path
-    updateManifest({ manifestPath, yamlPath: manifestPath });
+    updateManifest({ manifestPath, yamlManifestPath: yamlManifestPath });
   });
 };
 
@@ -138,8 +143,8 @@ export const handleDependenciesUpdated = ({
 
   const workspacePaths = workspaces.map((workspace) => workspace.cwd);
 
-  // for each workspace path and project path
-  [...workspacePaths, projectPath].forEach((workspacePath) => {
+  // project path is already considered a workspace apparently
+  [...workspacePaths].forEach((workspacePath) => {
     const manifestPath = path.join(workspacePath, manifestFileName);
     const yamlManifestPath = path.join(workspacePath, yamlManifestFileName);
 
@@ -148,7 +153,7 @@ export const handleDependenciesUpdated = ({
       // if package.yml does exist
       if (fs.existsSync(yamlManifestPath)) {
         // write package.json from package.yml
-        updateManifest({ manifestPath, yamlPath: yamlManifestPath });
+        updateManifest({ manifestPath, yamlManifestPath: yamlManifestPath });
       } else {
         // otherwise, skip this path
         return;
@@ -158,13 +163,13 @@ export const handleDependenciesUpdated = ({
     // if package.yml doesn't exist
     if (!fs.existsSync(yamlManifestPath)) {
       // write it from package.json
-      updateYaml({ manifestPath, yamlPath: yamlManifestPath });
+      updateYaml({ manifestPath, yamlManifestPath: yamlManifestPath });
       // and skip this path
       return;
     }
 
     // update package.yml from package.json for this path
-    updateYaml({ manifestPath, yamlPath: manifestPath });
+    updateYaml({ manifestPath, yamlManifestPath: yamlManifestPath });
   });
 };
 
