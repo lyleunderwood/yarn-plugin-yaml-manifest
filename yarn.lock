@@ -2568,7 +2568,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"globby@npm:^11.0.1, globby@npm:^11.0.4":
+"globby@npm:11.0.4, globby@npm:^11.0.1, globby@npm:^11.0.4":
   version: 11.0.4
   resolution: "globby@npm:11.0.4"
   dependencies:
@@ -4515,10 +4515,12 @@ __metadata:
     "@typescript-eslint/parser": ^5.8.0
     "@yarnpkg/builder": ^3.1.0
     "@yarnpkg/core": ^3.2.0-rc.8
+    "@yarnpkg/fslib": ^2.6.1-rc.3
     clipanion: ^3.2.0-rc.4
     eslint: ^8.5.0
     eslint-config-prettier: ^8.3.0
     eslint-plugin-prettier: ^4.0.0
+    globby: 11.0.4
     prettier: ^2.5.1
     rfc6902: ^5.0.0
     typanion: ^3.7.1

@@ -9,6 +9,7 @@ scripts:
   # outputs the plugin bundle to ./bundles
   build: builder build plugin
   ts:check: tsc --noEmit
+  import: yarn plugin import ./bundles/@yarnpkg/plugin-yaml-manifest.js
 
 dependencies:
   # specifies JavaScript object patch format and implements diffing
@@ -22,6 +23,8 @@ dependencies:
   clipanion: ^3.2.0-rc.4
   typanion: ^3.7.1
   "@yarnpkg/core": ^3.2.0-rc.8
+  "@yarnpkg/fslib": "^2.6.1-rc.3"
+  "globby": 11.0.4
 
 devDependencies:
   # build

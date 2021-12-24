@@ -1,167 +1,190 @@
-import * as fs from "fs";
+import {
+  Filename,
+  PortablePath,
+  ppath as path,
+  xfs as fs,
+  npath,
+} from "@yarnpkg/fslib";
 import * as YAML from "yaml";
 import * as YAMLDiffPatch from "yaml-diff-patch";
-import { createPatch, Operation } from "rfc6902";
-import type { Hooks, Plugin, CommandContext } from "@yarnpkg/core";
-import { Command, Usage } from "clipanion";
+import { createPatch, applyPatch } from "rfc6902";
+import type { Hooks, Plugin, Configuration, Project } from "@yarnpkg/core";
+import globby from "globby";
 
-export const DEFAULT_MANIFEST_PATH = "./package.json";
-export const DEFAULT_YAML_PATH = "./package.yml";
+export const DEFAULT_MANIFEST_FILE_NAME = "package.json" as Filename;
+export const DEFAULT_YAML_MANIFEST_FILE_NAME = "package.yml" as Filename;
 
-export const manifestPath = process.env.MANIFEST_PATH || DEFAULT_MANIFEST_PATH;
-export const yamlManifestPath =
-  process.env.YAML_MANIFEST_PATH || DEFAULT_YAML_PATH;
+export const manifestFileName =
+  (process.env.MANIFEST_FILE_NAME as Filename) || DEFAULT_MANIFEST_FILE_NAME;
+export const yamlManifestFileName =
+  (process.env.YAML_MANIFEST_FILE_NAME as Filename) ||
+  DEFAULT_YAML_MANIFEST_FILE_NAME;
 
-export const manifestContents = (
-  path: string = DEFAULT_MANIFEST_PATH
-): string => (fs.existsSync(path) ? fs.readFileSync(path).toString() : "{}");
+const isTruthy = <T>(thing: T | undefined): thing is T =>
+  thing !== null && thing !== undefined;
 
-export const yamlContents = (path: string = DEFAULT_YAML_PATH) =>
-  fs.existsSync(path) ? fs.readFileSync(path).toString() : "{}";
+/**
+ * Update YAML manifest file to have the same effective contents as
+ * JSON manifest file.
+ *
+ * If the YAML manifest file does not exist it will be created.
+ */
+export const updateYaml = ({
+  manifestPath,
+  yamlManifestPath,
+}: {
+  manifestPath: PortablePath;
+  yamlManifestPath: PortablePath;
+}) => {
+  const yamlString = fs.existsSync(yamlManifestPath)
+    ? fs.readFileSync(yamlManifestPath).toString()
+    : "{}";
 
-export const writeYaml = (
-  contents: string,
-  path: string = DEFAULT_YAML_PATH
-) => {
-  fs.writeFileSync(path, contents);
-};
+  const jsonObject = JSON.parse(fs.readFileSync(manifestPath).toString());
+  const yamlObject = YAML.parse(yamlString);
 
-export const writeManifest = (
-  contents: string,
-  path: string = DEFAULT_MANIFEST_PATH
-) => {
-  fs.writeFileSync(path, contents);
-};
+  const delta = createPatch(yamlObject, jsonObject);
 
-export const yamlAsJS = (yaml: string) => {
-  return YAML.parse(yaml);
-};
+  // if the contents would be unchanged, don't bother writing (mostly to preserve mtime)
+  if (delta.length === 0) return;
 
-export const jsonDiff = ({ from, to }: { from: unknown; to: unknown }) => {
-  return createPatch(from, to);
-};
-
-export const patchedYaml = (yaml: string, patch: Operation[]) => {
-  return YAMLDiffPatch.yamlPatch(yaml, patch);
-};
-
-export const updateYaml = (
-  {
-    manifestPath = DEFAULT_MANIFEST_PATH,
-    yamlPath = DEFAULT_YAML_PATH,
-  }: { manifestPath: string; yamlPath: string } = {
-    manifestPath: DEFAULT_MANIFEST_PATH,
-    yamlPath: DEFAULT_YAML_PATH,
-  }
-) => {
-  if (!fs.existsSync(manifestPath)) {
-    throw new Error(`${manifestPath} doesn't exist!`);
-  }
-
-  if (!fs.existsSync(yamlPath)) {
-    process.stderr.write(
-      `${yamlPath} doesn't exist, so we're going to create it from ${manifestPath}.\n`
-    );
-    writeYaml(
-      YAML.stringify(JSON.parse(manifestContents(manifestPath))),
-      yamlPath
-    );
-    return;
-  }
-
-  const yaml = yamlContents(yamlPath);
-
-  const patch = jsonDiff({
-    to: JSON.parse(manifestContents(manifestPath)),
-    from: yamlAsJS(yaml),
-  });
-
-  // if the patch doesn't do anything, don't bother writing (and preserve mtime)
-  if (patch.length === 0) return;
-
-  writeYaml(patchedYaml(yaml, patch));
-};
-
-export const updateManifest = (
-  {
-    manifestPath = DEFAULT_MANIFEST_PATH,
-    yamlPath = DEFAULT_YAML_PATH,
-  }: { manifestPath: string; yamlPath: string } = {
-    manifestPath: DEFAULT_MANIFEST_PATH,
-    yamlPath: DEFAULT_YAML_PATH,
-  }
-) => {
-  if (!fs.existsSync(manifestPath)) {
-    process.stderr.write(
-      `${manifestPath} doesn't exist so we're going to create it from ${yamlPath}.\n`
-    );
-
-    const yamlJson = JSON.stringify(
-      YAML.parse(yamlContents(yamlPath)),
-      null,
-      2
-    );
-
-    // if the contents would be unchanged, don't bother writing (mostly to preserve mtime)
-    if (yamlJson === manifestContents(manifestPath)) return;
-
-    writeManifest(yamlJson, manifestPath);
-    return;
-  }
-
-  if (!fs.existsSync(yamlPath)) {
-    process.stderr.write(
-      `${yamlPath} doesn't exist, so we're going to create it from ${manifestPath}.\n`
-    );
-    writeYaml(
-      YAML.stringify(JSON.parse(manifestContents(manifestPath))),
-      yamlPath
-    );
-    return;
-  }
-
-  writeManifest(
-    JSON.stringify(yamlAsJS(yamlContents(yamlPath)), null, 2),
-    manifestPath
+  fs.writeFileSync(
+    yamlManifestPath,
+    YAMLDiffPatch.yamlPatch(yamlString, delta)
   );
 };
 
-class UpdateManifestFromYaml extends Command<CommandContext> {
-  static paths = [["update-manifest-from-yaml"]];
+/**
+ * Update JSON manifest file to have the same effective contents as
+ * YAML manifest file.
+ *
+ * If JSON manifest file does not exist it will be created.
+ */
+export const updateManifest = ({
+  manifestPath,
+  yamlManifestPath,
+}: {
+  manifestPath: PortablePath;
+  yamlManifestPath: PortablePath;
+}) => {
+  const yamlObject = YAML.parse(fs.readFileSync(yamlManifestPath).toString());
+  const jsonObject = fs.existsSync(manifestPath)
+    ? JSON.parse(fs.readFileSync(manifestPath).toString())
+    : {};
 
-  static usage: Usage = Command.Usage({
-    description:
-      "Write manifest file to reflect contents of YAML manifest file.",
-  });
+  const delta = createPatch(jsonObject, yamlObject);
 
-  async execute() {
-    return Promise.resolve(
-      updateManifest({ manifestPath, yamlPath: yamlManifestPath })
-    );
-  }
-}
+  // if the contents would be unchanged, don't bother writing (mostly to preserve mtime)
+  if (delta.length === 0) return;
 
-class UpdateYamlFromManifest extends Command<CommandContext> {
-  static paths = [["update-yaml-from-manifest"]];
-
-  static usage: Usage = Command.Usage({
-    description:
-      "Patch YAML manifest file from real manifest file, attempting to preserve whitespace.",
-  });
-
-  async execute() {
-    return Promise.resolve(
-      updateYaml({ manifestPath, yamlPath: yamlManifestPath })
-    );
-  }
-}
-
-export const handleYarnStart = () => {
-  updateManifest({ manifestPath, yamlPath: yamlManifestPath });
+  const errors = applyPatch(jsonObject, delta); // mutates jsonObject
+  if (errors?.length > 0) console.error(errors);
+  fs.writeFileSync(manifestPath, JSON.stringify(jsonObject, null, 2));
 };
 
-export const handleDependenciesUpdated = () => {
-  updateYaml({ manifestPath, yamlPath: yamlManifestPath });
+/**
+ * Prepares given directory for synchronization between YAML and JSON manifest files.
+ *
+ * If a JSON manifest does not exist but a YAML one does, creates JSON manifest from YAML.
+ *
+ * If a YAML manifest does not exist but a JSON one does, creates YAML manifest from JSON.
+ *
+ * Returns `undefined` if neither manifest file exists, or returns paths to both
+ * manifest files if they do exist.
+ */
+export const normalizeDirectory = (dirPath: PortablePath) => {
+  const manifestPath = path.join(dirPath, manifestFileName);
+  const yamlManifestPath = path.join(dirPath, yamlManifestFileName);
+
+  // if package.json doesn't exist
+  if (!fs.existsSync(manifestPath)) {
+    // if package.yml does exist
+    if (fs.existsSync(yamlManifestPath)) {
+      // write package.json from package.yml
+      updateManifest({ manifestPath, yamlManifestPath });
+    } else {
+      // otherwise, skip this path
+      return;
+    }
+  }
+
+  // if package.yml doesn't exist
+  if (!fs.existsSync(yamlManifestPath)) {
+    // write it from package.json
+    updateYaml({ manifestPath, yamlManifestPath });
+    // and skip this path
+    return;
+  }
+
+  return { manifestPath, yamlManifestPath };
+};
+
+/**
+ * Callback invoked when a yarn command is run.
+ *
+ * Invoked before manifest file is first read by yarn.
+ *
+ * Calls `updateManifest` for each workspace directory.
+ */
+export const handleYarnStart = async ({ projectCwd }: Configuration) => {
+  // because yarn has not yet read the manifest file there is no `Project` initialized,
+  // and therefore we need to read a manifest ourselves and determine the relevant
+  // workspace directories. we attempt to do this in the same way that yarn is doing it
+  // internally.
+
+  // bail if no project path, project must not be initialized
+  if (projectCwd === null) return;
+
+  const projectYamlManifestPath = path.join(
+    projectCwd,
+    yamlManifestFileName as Filename
+  );
+
+  const projectManifestPath = path.join(
+    projectCwd,
+    manifestFileName as Filename
+  );
+
+  // in theory the yaml file should be our source of truth generally
+  const projectConfig = fs.existsSync(projectYamlManifestPath)
+    ? YAML.parse(fs.readFileSync(projectYamlManifestPath).toString())
+    : fs.existsSync(projectManifestPath)
+    ? JSON.parse(fs.readFileSync(projectManifestPath).toString())
+    : {};
+
+  const patterns: string[] = projectConfig?.workspaces || [];
+
+  // stolen from https://git.io/JyLqf
+  const globPaths = globby.sync(patterns, {
+    cwd: npath.fromPortablePath(projectCwd),
+    expandDirectories: false,
+    onlyDirectories: true,
+    onlyFiles: false,
+    ignore: [`**/node_modules`, `**/.git`, `**/.yarn`],
+  });
+
+  const workspacePaths = globPaths.map(npath.toPortablePath);
+
+  // normalize and update manifests in all relevant directories
+  [...workspacePaths, projectCwd]
+    .map(normalizeDirectory)
+    .filter(isTruthy)
+    .forEach(updateManifest);
+};
+
+/**
+ * Callback invoked after any yarn install operation has completed.
+ *
+ * Calls `updateYaml` for each workspace directory.
+ */
+export const handleDependenciesUpdated = ({ workspaces }: Project) => {
+  // projectCwd is already considered a workspace apparently
+  // normalize and update yaml in all relevant directories
+  workspaces
+    .map((workspace) => workspace.cwd)
+    .map(normalizeDirectory)
+    .filter(isTruthy)
+    .forEach(updateYaml);
 };
 
 let yarnStarted = false;
@@ -172,19 +195,18 @@ const plugin: Plugin<Hooks> = {
     // only way I could find to do this was this hook. It gets called multiple times,
     // but we only want our action to happen once. Seems to be called before most
     // significant yarn actions, including adds, installs, scripts, etc.
-    registerPackageExtensions: () => {
+    registerPackageExtensions: (configuration) => {
       if (yarnStarted) return Promise.resolve();
 
       yarnStarted = true;
 
-      handleYarnStart();
-      return Promise.resolve();
+      return handleYarnStart(configuration);
     },
-    afterAllInstalled: () => {
-      handleDependenciesUpdated();
+    afterAllInstalled: (project) => {
+      handleDependenciesUpdated(project);
     },
   },
-  commands: [UpdateManifestFromYaml, UpdateYamlFromManifest],
+  commands: [],
 };
 
 export default plugin;
