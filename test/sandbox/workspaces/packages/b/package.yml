@@ -1,0 +1,5 @@
+{
+  name: b,
+  packageManager: yarn@3.1.1,
+  dependencies: { lodash: ^4.17.21, debounce: ^1.2.1 }
+}
